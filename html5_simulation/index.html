@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Car Simulation</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+        }
+
+        #canvas {
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="canvas"></canvas>
+
+    <script src="js/debugwatch.js"></script>
+    <script src="js/eventmanager.js"></script>
+    <script src="js/keycodes.js"></script>
+    <script src="js/mathhelper.js"></script>
+    <script src="js/vector.js"></script>
+    <script src="js/laserscan.js"></script>
+    <script src="js/car.js"></script>
+    <script src="js/ai.js"></script>
+    <script src="js/main.js"></script>
+    <script>
+         window.onload = function () { 
+             Application.start();
+         };
+    </script>
+</body>
