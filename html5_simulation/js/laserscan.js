@@ -10,19 +10,38 @@ class LaserScan {
         this.endAngle = options.endAngle || -60;
         this.angleInterval = options.angleInterval || 10;
 
-        this.startAngleRad = MathHelper.degreeToRadians(this.startAngle + 90);
-        this.endAngleRad = MathHelper.degreeToRadians(this.endAngle + 90);
+        this.startAngleRad = MathHelper.degreeToRadians(this.startAngle);
+        this.endAngleRad = MathHelper.degreeToRadians(this.endAngle);
         this.angleIntervalRad = MathHelper.degreeToRadians(this.angleInterval);
+
+        this.running = true;
+
+        let that = this;
+        eventManager.subscribe(Topics.KEYBOARD_KEY_PRESSED, function(e) {
+            if (e.key === "l") {
+                that.running = !that.running;
+            }
+        });
     }
 
     update() {
+        if (!this.running) {
+            return;
+        }
+
         let i = 0;
         for (let a = this.startAngleRad; a >= this.endAngleRad; a-=this.angleIntervalRad, i++) {
             this.points[i] = { x: this.x + this.maxRange * Math.cos(a), y: this.y + this.maxRange * Math.sin(a) };         
         }
+
+        eventManager.publish(Topics.LASER_SCAN, this.ranges);
     }
 
     draw(ctx) {
+        if (!this.running) {
+            return;
+        }
+
         ctx.save();
 
         ctx.fillStyle = "red";

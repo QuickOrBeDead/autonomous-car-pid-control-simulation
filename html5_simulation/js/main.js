@@ -18,7 +18,7 @@ class Application {
             time = 0,
             deltaTime = 0;
         
-        const car = new Car({ screenWidth: width, screenHeight: height, x: 200, y: 200, heading: 90 });
+        const car = new Car({ screenWidth: width, screenHeight: height, x: 200, y: 200, heading: 0 });
         const ai = new AI();
 
         eventManager.subscribeMany([Topics.CAR_INFO, Topics.APP_INFO], function(d) {
@@ -80,6 +80,8 @@ class Application {
             if (e.keyCode === KeyCodes.SPACE) {
                 running = !running;
             }
+
+            eventManager.publish(Topics.KEYBOARD_KEY_PRESSED, e);
         });
 
         window.addEventListener("keydown", function(e) {

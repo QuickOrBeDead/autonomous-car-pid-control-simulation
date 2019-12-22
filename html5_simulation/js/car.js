@@ -8,45 +8,49 @@ const SteerDirection = {
 class Car {
     constructor(options = {}) {
         this.width = 14;
-        this.height = 25;
+        this.length = 25;
         this.position = Vector.create(options.x || 100, options.y || 100);
     
         this.steerAngle = 0;
         this.maxSteerAngle = options.maxSteerAngle || Math.PI / 4;
-        this.speed = options.speed || 0.25;
-        this.maxSpeed = 4;
+        this.speed = options.speed || 0;
+        this.maxSpeed = 3;
         this.frictionRate = 0.025;
         this.acceleration = 0.2;
         this.deceleration = 0.05;
-        this.heading = MathHelper.degreeToRadians(options.heading || 180);
+        this.heading = MathHelper.degreeToRadians(options.heading || 0);
 
-        this.middleHeight = this.height / 2;
+        this.minusMaxSteerAngle = -this.maxSteerAngle;
+        this.minusMaxSpeed = -this.maxSpeed;
+
+        this.middleLength = this.length / 2;
         this.middleWidth = this.width / 2;
         this.screenWidth = options.screenWidth;
         this.screenHeight = options.screenHeight;
 
-        this.bodyStartX = -this.middleWidth;
-        this.bodyStartY = -this.middleHeight;
+        this.bodyStartX = -this.middleLength;
+        this.bodyStartY = -this.middleWidth;
         this.bodyColor = "#3F3F3F";
 
-        this.windshieldStartX = this.bodyStartX + 1;
+        this.windshieldStartX = 2;
+        this.windshieldStartY = -this.middleWidth + 1;
         this.windshieldWidth = this.width - 2;
-        this.windshieldHeight = 4;
+        this.windshieldLength = 4;
         this.windshieldColor = "#E0E0E0";
 
-        this.tireBackY = this.bodyStartY - 2;
-        this.tireLeftX = this.middleWidth - 1;
-        this.tireRightX = this.bodyStartX - 2;
         this.tireWidth = 3;
-        this.tireHeight = 5;
-        this.tireFrontLeftXMiddle = this.tireLeftX + this.tireWidth / 2;
-        this.tireFrontRightXMiddle = this.tireRightX + this.tireWidth / 2;
-        this.tireFrontYMiddle = this.middleHeight - 4 + this.tireHeight / 2;
-        this.tireFrontStartX = -this.tireWidth / 2;
-        this.tireFrontStartY = -this.tireHeight / 2;
+        this.tireLength = 5;
+        this.tireBackX = this.bodyStartX - 2;
+        this.tireRightY = this.middleWidth - 2;
+        this.tireLeftY = -this.middleWidth - 1;
+        this.tireFrontRightYMiddle = this.tireRightY - 1 + this.tireLength / 2;
+        this.tireFrontLeftYMiddle = this.tireLeftY - 1 + this.tireLength / 2;
+        this.tireFrontXMiddle = this.middleLength - 4 + this.tireLength / 2;
+        this.tireFrontStartX = -this.tireLength / 2;
+        this.tireFrontStartY = -this.tireWidth / 2;
         this.tireColor = "#000";
 
-        this.laserScan = new LaserScan({x: 0, y: 2 + this.windshieldHeight / 2 });
+        this.laserScan = new LaserScan({x: 2 + this.windshieldLength / 2, y: 0 });
 
         const that = this;
         eventManager.subscribe(Topics.CAR_STEER, function(d) {
@@ -75,9 +79,9 @@ class Car {
         this.laserScan.update();
 
         eventManager.publish(Topics.CAR_INFO, { 
-            "Speed": this.speed.toFixed(2), 
+            "Speed": { val: this.speed, toString: function(){ return this.val.toFixed(2); } }, 
             "Steer Angle": Math.floor(MathHelper.radiansToDegree(this.steerAngle)),
-            "Car Angle": (Math.floor(MathHelper.radiansToDegree(this.heading)) + 270) % 360,
+            "Car Angle": (Math.floor(MathHelper.radiansToDegree(this.heading))),
             "Position": this.position.toString()  }
             );
     }
@@ -120,21 +124,18 @@ class Car {
 
     move() { 
         const { x, y } = this.position;
-        const { heading, middleHeight, steerAngle, speed } = this;
+        const { heading, middleLength, steerAngle, speed } = this;
 
         const sinHeading = Math.sin(heading);
         const cosHeading = Math.cos(heading);
-        const vectorXChange = middleHeight * sinHeading;
-        const vectorYChange = middleHeight * cosHeading;
-        const front = Vector.create(x + vectorXChange, y + vectorYChange);
-        const back = Vector.create(x - vectorXChange, y - vectorYChange);   
+        const vectorXChange = middleLength * cosHeading;
+        const vectorYChange = middleLength * sinHeading;
         const frontAngle = heading + steerAngle;
-
-        front.addScalar(speed * Math.sin(frontAngle), speed * Math.cos(frontAngle));
-        back.addScalar(speed * sinHeading, speed * cosHeading);
+        const front = Vector.create(x + vectorXChange + speed * Math.cos(frontAngle), y + vectorYChange + speed * Math.sin(frontAngle));
+        const back = Vector.create(x - vectorXChange + speed * cosHeading, y - vectorYChange + speed * sinHeading);   
 
         this.position.set((front.x + back.x) / 2, (front.y + back.y) / 2);
-        this.heading = Math.atan2(front.x - back.x, front.y - back.y);
+        this.heading = Math.atan2(front.y - back.y, front.x - back.x);
     }
 
     steer(dir) {
@@ -143,13 +144,13 @@ class Car {
         } else if (dir === SteerDirection.BACKWARD) {
             this.speed -= this.deceleration;
         } else if (dir === SteerDirection.LEFT) {
-            this.steerAngle = this.steerAngle >= this.maxSteerAngle ? this.maxSteerAngle : this.steerAngle + 0.08;
+            this.steerAngle = this.steerAngle <= this.minusMaxSteerAngle ? this.minusMaxSteerAngle : this.steerAngle - 0.08;
         } else if (dir === SteerDirection.RIGHT) {
-          this.steerAngle = this.steerAngle <= -this.maxSteerAngle ? -this.maxSteerAngle : this.steerAngle - 0.08;
+          this.steerAngle = this.steerAngle >= this.maxSteerAngle ? this.maxSteerAngle : this.steerAngle + 0.08;
         }
     
-        if (this.speed < -this.maxSpeed) {
-            this.speed = -this.maxSpeed;
+        if (this.speed < this.minusMaxSpeed) {
+            this.speed = this.minusMaxSpeed;
         } else if (this.speed > this.maxSpeed) {
             this.speed = this.maxSpeed;
         }
@@ -159,7 +160,7 @@ class Car {
         ctx.save();
 
         ctx.translate(this.position.x, this.position.y);
-        ctx.rotate(-this.heading);
+        ctx.rotate(this.heading);
 
         this.drawTires(ctx);
         this.drawBody(ctx);
@@ -174,7 +175,7 @@ class Car {
         ctx.save();
 
         ctx.fillStyle = this.windshieldColor;
-        ctx.fillRect(this.windshieldStartX, 2, this.windshieldWidth, this.windshieldHeight);
+        ctx.fillRect(this.windshieldStartX, this.windshieldStartY, this.windshieldLength, this.windshieldWidth);
 
         ctx.restore();
     }
@@ -185,11 +186,11 @@ class Car {
         ctx.fillStyle = "yellow";
         
         ctx.beginPath();
-        ctx.arc(-5, 12, 1, 0, MathHelper.PI2);
+        ctx.arc(12, -4, 1, 0, MathHelper.PI2);
         ctx.fill();
 
         ctx.beginPath();
-        ctx.arc(5, 12, 1, 0, MathHelper.PI2);
+        ctx.arc(12, 4, 1, 0, MathHelper.PI2);
         ctx.fill();
         
         ctx.restore();
@@ -200,19 +201,19 @@ class Car {
 
         ctx.fillStyle = this.tireColor;
 
-        ctx.fillRect(this.tireLeftX, this.tireBackY, this.tireWidth, this.tireHeight);
-        ctx.fillRect(this.tireRightX, this.tireBackY, this.tireWidth, this.tireHeight);
+        ctx.fillRect(this.tireBackX, this.tireLeftY, this.tireLength, this.tireWidth);
+        ctx.fillRect(this.tireBackX, this.tireRightY, this.tireLength, this.tireWidth);
         
         ctx.save();
-        ctx.translate(this.tireFrontLeftXMiddle, this.tireFrontYMiddle);
-        ctx.rotate(-this.steerAngle);
-        ctx.fillRect(this.tireFrontStartX, this.tireFrontStartY, this.tireWidth, this.tireHeight);
+        ctx.translate(this.tireFrontXMiddle, this.tireFrontLeftYMiddle);
+        ctx.rotate(this.steerAngle);
+        ctx.fillRect(this.tireFrontStartX, this.tireFrontStartY, this.tireLength, this.tireWidth);
         ctx.restore();
 
         ctx.save();
-        ctx.translate(this.tireFrontRightXMiddle, this.tireFrontYMiddle);
-        ctx.rotate(-this.steerAngle);
-        ctx.fillRect(this.tireFrontStartX, this.tireFrontStartY, this.tireWidth, this.tireHeight);
+        ctx.translate(this.tireFrontXMiddle, this.tireFrontRightYMiddle);
+        ctx.rotate(this.steerAngle);
+        ctx.fillRect(this.tireFrontStartX, this.tireFrontStartY, this.tireLength, this.tireWidth);
         ctx.restore();
 
         ctx.restore();
@@ -222,7 +223,7 @@ class Car {
         ctx.save();
 
         ctx.fillStyle = this.bodyColor;
-        ctx.fillRect(this.bodyStartX, this.bodyStartY, this.width, this.height);
+        ctx.fillRect(this.bodyStartX, this.bodyStartY, this.length, this.width);
 
         ctx.restore();
     }

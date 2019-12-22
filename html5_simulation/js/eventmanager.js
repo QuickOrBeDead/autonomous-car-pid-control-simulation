@@ -1,7 +1,9 @@
 const Topics = {
     APP_INFO: "app_info",
     CAR_INFO: "car_info",
-    CAR_STEER: "car_steer"
+    CAR_STEER: "car_steer",
+    LASER_SCAN: "laser_scan",
+    KEYBOARD_KEY_PRESSED: "keyboard_key_pressed"
 };
 
 class EventManager {
