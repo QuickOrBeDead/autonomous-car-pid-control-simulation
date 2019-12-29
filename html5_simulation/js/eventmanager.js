@@ -1,8 +1,10 @@
 const Topics = {
     APP_INFO: "app_info",
+    APP_CONTROL: "app_control",
     CAR_INFO: "car_info",
     CAR_STEER: "car_steer",
     LASER_SCAN: "laser_scan",
+    DEBUG_INFO: "debug_info",
     KEYBOARD_KEY_PRESSED: "keyboard_key_pressed"
 };
 
@@ -37,5 +39,9 @@ class EventManager {
                 callback(item);
             }
         }
+    }
+
+    reset() {
+        this.registry = {};
     }
 }

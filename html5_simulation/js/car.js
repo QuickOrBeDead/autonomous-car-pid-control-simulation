@@ -9,16 +9,24 @@ class Car {
     constructor(options = {}) {
         this.width = 14;
         this.length = 25;
-        this.position = Vector.create(options.x || 100, options.y || 100);
-    
+        this.track = options.track;
+        this.x = this.track.startX || 100;
+        this.y = this.track.startY || 100;
+        this.routePoints = [];
+        this.distance = 0;
+        this.carCrashPoint = null;
+        this.carEdgePoints = [];
+        this.showCarEdgePoints = false;
+        this.showRoutePoints = true;
+
         this.steerAngle = 0;
         this.maxSteerAngle = options.maxSteerAngle || Math.PI / 4;
+        this.carAngle = MathHelper.degreeToRadians(options.carAngle || 0);
         this.speed = options.speed || 0;
         this.maxSpeed = 3;
         this.frictionRate = 0.025;
         this.acceleration = 0.2;
         this.deceleration = 0.05;
-        this.heading = MathHelper.degreeToRadians(options.heading || 0);
 
         this.minusMaxSteerAngle = -this.maxSteerAngle;
         this.minusMaxSpeed = -this.maxSpeed;
@@ -32,11 +40,11 @@ class Car {
         this.bodyStartY = -this.middleWidth;
         this.bodyColor = "#3F3F3F";
 
-        this.windshieldStartX = 2;
-        this.windshieldStartY = -this.middleWidth + 1;
-        this.windshieldWidth = this.width - 2;
-        this.windshieldLength = 4;
-        this.windshieldColor = "#E0E0E0";
+        this.roofStartX = 2;
+        this.roofStartY = -this.middleWidth + 1;
+        this.roofWidth = this.width - 2;
+        this.roofLength = 4;
+        this.roofColor = "#E0E0E0";
 
         this.tireWidth = 3;
         this.tireLength = 5;
@@ -50,7 +58,9 @@ class Car {
         this.tireFrontStartY = -this.tireWidth / 2;
         this.tireColor = "#000";
 
-        this.laserScan = new LaserScan({x: 2 + this.windshieldLength / 2, y: 0 });
+        this.lazerScanRelativeX = 2 + this.roofLength / 2;
+        this.laserScan = new LaserScan({ track: this.track });
+        this.setLaserScanPosition();
 
         const that = this;
         eventManager.subscribe(Topics.CAR_STEER, function(d) {
@@ -70,37 +80,112 @@ class Car {
                 that.steer(SteerDirection.BACKWARD);
             }
         });
+
+        eventManager.subscribe(Topics.KEYBOARD_KEY_PRESSED, function(e) {
+            if (e.key === "e") {
+                that.showCarEdgePoints = !that.showCarEdgePoints;
+            } else if (e.key === "t") {
+                that.showRoutePoints = !that.showRoutePoints;
+            }
+        });
     }
 
     update() {
         this.constrain();
         this.friction();
         this.move();
+        this.calculateEdgePoints();
+
+        this.setLaserScanPosition();
         this.laserScan.update();
 
+        this.updateRoutePoints();
+
         eventManager.publish(Topics.CAR_INFO, { 
-            "Speed": { val: this.speed, toString: function(){ return this.val.toFixed(2); } }, 
-            "Steer Angle": Math.floor(MathHelper.radiansToDegree(this.steerAngle)),
-            "Car Angle": (Math.floor(MathHelper.radiansToDegree(this.heading))),
-            "Position": this.position.toString()  }
-            );
+            "Car Speed": { val: this.speed, toString: function(){ return this.val.toFixed(2); } }, 
+            "Car Steer Angle": Math.floor(MathHelper.radiansToDegree(this.steerAngle)),
+            "Car Angle": (Math.floor(MathHelper.radiansToDegree(this.carAngle))),
+            "Car Position": "(" + Math.floor(this.x) + " , " + Math.floor(this.y) + ")",
+            "Car Distance": Math.floor(this.distance)
+        });
+    }
+
+    calculateEdgePoints() {
+        const carAngle = this.carAngle, 
+            rx = this.middleLength, 
+            ry = this.middleWidth, 
+            cosA = Math.cos(carAngle), 
+            sinA = Math.sin(carAngle), 
+            x = this.x, 
+            y = this.y, 
+            x1 = x + rx * cosA - ry * sinA, 
+            y1 = y + rx * sinA + ry * cosA, 
+            x2 = x + rx * cosA - -ry * sinA, 
+            y2 = y + rx * sinA + -ry * cosA, 
+            x3 = x + -rx * cosA - -ry * sinA, 
+            y3 = y + -rx * sinA + -ry * cosA, 
+            x4 = x + -rx * cosA - ry * sinA, 
+            y4 = y + -rx * sinA + ry * cosA;
+        
+        const edgePoints = this.carEdgePoints;
+        edgePoints[0] = [x1, y1];
+        edgePoints[1] = [x2, y2];
+        edgePoints[2] = [x3, y3];
+        edgePoints[3] = [x4, y4];
+
+        let crashPoint = null;
+        if ((crashPoint = this.track.lineSegmentIntersect(x1, y1, x2, y2, true)) ||
+            (crashPoint = this.track.lineSegmentIntersect(x2, y2, x3, y3, true)) ||
+            (crashPoint = this.track.lineSegmentIntersect(x3, y3, x4, y4, true)) ||
+            (crashPoint = this.track.lineSegmentIntersect(x4, y4, x1, y1, true))) {
+            this.carCrashPoint = crashPoint;
+
+            eventManager.publish(Topics.APP_CONTROL, ApplicationStates.PAUSED);
+            eventManager.publish(Topics.APP_CONTROL, ApplicationStates.RESTART);
+        }
+    }
+
+    updateRoutePoints() {
+        if (!this.showRoutePoints) {
+            if (this.routePoints.length) {
+                this.routePoints = [];
+            }
+            return;
+        }
+
+        const routePoints = this.routePoints;
+        if (routePoints.length > 500) {
+            routePoints.splice(0, 1);
+        }
+        routePoints.push({ x: this.x, y: this.y });
+    }
+
+    setLaserScanPosition() {
+        const carAngle = this.carAngle;
+        const lazerScanRelativeX = this.lazerScanRelativeX;
+        
+        this.laserScan.setPosition(this.x + MathHelper.calculateRotationX(lazerScanRelativeX, 0, carAngle), this.y + MathHelper.calculateRotationY(lazerScanRelativeX, 0, carAngle), carAngle);
     }
 
     constrain() {
-        if (this.position.x < 0) {
-            this.position.x = 0;
+        const x = this.x;
+        if (x < 0) {
+            this.x = 0;
         }
 
-        if (this.position.x > this.screenWidth) {
-            this.position.x = this.screenWidth; 
+        const screenWidth = this.screenWidth;
+        if (x > screenWidth) {
+            this.x = screenWidth; 
         }
 
-        if (this.position.y < 0) {
-            this.position.y = 0;
+        const y = this.y;
+        if (y < 0) {
+            this.y = 0;
         }
 
-        if (this.position.y > this.screenHeight) {
-            this.position.y = this.screenHeight;
+        const screenHeight = this.screenHeight;
+        if (y > screenHeight) {
+            this.y = screenHeight;
         }
     }
 
@@ -123,19 +208,28 @@ class Car {
     }
 
     move() { 
-        const { x, y } = this.position;
-        const { heading, middleLength, steerAngle, speed } = this;
+        const x = this.x,
+              y = this.y,
+              carAngle = this.carAngle,
+              middleLength = this.middleLength,
+              steerAngle = this.steerAngle,
+              speed = this.speed;
 
-        const sinHeading = Math.sin(heading);
-        const cosHeading = Math.cos(heading);
-        const vectorXChange = middleLength * cosHeading;
-        const vectorYChange = middleLength * sinHeading;
-        const frontAngle = heading + steerAngle;
-        const front = Vector.create(x + vectorXChange + speed * Math.cos(frontAngle), y + vectorYChange + speed * Math.sin(frontAngle));
-        const back = Vector.create(x - vectorXChange + speed * cosHeading, y - vectorYChange + speed * sinHeading);   
+        const sinHeading = Math.sin(carAngle),
+              cosHeading = Math.cos(carAngle),
+              rotateXChange = middleLength * cosHeading,
+              rotateYChange = middleLength * sinHeading,
+              frontAngle = carAngle + steerAngle,
+              frontX = x + rotateXChange + speed * Math.cos(frontAngle),
+              frontY = y + rotateYChange + speed * Math.sin(frontAngle),
+              backX = x - rotateXChange + speed * cosHeading,
+              backY = y - rotateYChange + speed * sinHeading;
 
-        this.position.set((front.x + back.x) / 2, (front.y + back.y) / 2);
-        this.heading = Math.atan2(front.y - back.y, front.x - back.x);
+        this.x = (frontX + backX) / 2;
+        this.y = (frontY + backY) / 2;
+        this.carAngle = Math.atan2(frontY - backY, frontX - backX);
+
+        this.distance += MathHelper.distance(x, y, this.x, this.y);
     }
 
     steer(dir) {
@@ -156,26 +250,96 @@ class Car {
         }
     }
 
-    draw(ctx) {
+    draw(ctx) {  
+        this.track.draw(ctx);
+
+        this.drawCar(ctx);
+        this.drawRoutePoints(ctx);
+        this.drawCarEdgePoints(ctx);
+
+        this.laserScan.draw(ctx);
+
+        this.drawCarCrashPoint(ctx);
+    }
+
+    drawCarCrashPoint(ctx) {
+        const crashPoint = this.carCrashPoint;
+        if (crashPoint) {
+            ctx.save();
+
+            ctx.fillStyle = "yellow";
+
+            ctx.beginPath();
+            ctx.arc(crashPoint.x, crashPoint.y, 3, 0, MathHelper.PI2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+    }
+
+    drawCarEdgePoints(ctx) {
+        if (!this.showCarEdgePoints) {
+            return;
+        }
+
         ctx.save();
 
-        ctx.translate(this.position.x, this.position.y);
-        ctx.rotate(this.heading);
+        ctx.fillStyle = "green";
 
-        this.drawTires(ctx);
-        this.drawBody(ctx);
-        this.drawLights(ctx);
-        this.drawWindshield(ctx);
-        this.laserScan.draw(ctx);
+        const edgePoints = this.carEdgePoints;
+        const len = edgePoints.length;
+        for (let i = 0; i < len; i++) {
+            const edgePoint = edgePoints[i];
+
+            ctx.beginPath();
+            ctx.arc(edgePoint[0], edgePoint[1], 2, 0, MathHelper.PI2);
+            ctx.fill();
+        }
 
         ctx.restore();
     }
 
-    drawWindshield(ctx) {
+    drawCar(ctx) {
         ctx.save();
 
-        ctx.fillStyle = this.windshieldColor;
-        ctx.fillRect(this.windshieldStartX, this.windshieldStartY, this.windshieldLength, this.windshieldWidth);
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.carAngle);
+
+        this.drawTires(ctx);
+        this.drawBody(ctx);
+        this.drawLights(ctx);
+        this.drawRoof(ctx);
+
+        ctx.restore();
+    }
+
+    drawRoutePoints(ctx) {
+        if (!this.showRoutePoints) {
+            return;
+        }
+        
+        ctx.save();
+
+        ctx.fillStyle = "rgba(0,0,255,0.2)";
+        
+        const routePoints = this.routePoints;
+        const len = routePoints.length;
+        for (let i = 0; i < len; i++) {
+            const point = routePoints[i];
+
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, 1, 0, MathHelper.PI2);
+            ctx.fill();
+        }
+
+        ctx.restore();
+    }
+
+    drawRoof(ctx) {
+        ctx.save();
+
+        ctx.fillStyle = this.roofColor;
+        ctx.fillRect(this.roofStartX, this.roofStartY, this.roofLength, this.roofWidth);
 
         ctx.restore();
     }

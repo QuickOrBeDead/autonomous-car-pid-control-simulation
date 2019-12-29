@@ -1,20 +1,18 @@
 class LaserScan {
     constructor(options = {}) {
-        this.x = options.x || 0;
-        this.y = options.y || 0;
-        this.maxRange = options.maxRange || 36;
-        this.ranges = [];
-        this.points = [];
-
-        this.startAngle = options.startAngle || 60;
-        this.endAngle = options.endAngle || -60;
+        this.maxRange = options.maxRange || 50;
+        this.track = options.track;
+        this.startAngle = options.startAngle || 80;
+        this.endAngle = options.endAngle || -80;
         this.angleInterval = options.angleInterval || 10;
+        this.rangeCount = Math.floor(Math.abs(this.startAngle - this.endAngle) / this.angleInterval) + 1; 
 
         this.startAngleRad = MathHelper.degreeToRadians(this.startAngle);
-        this.endAngleRad = MathHelper.degreeToRadians(this.endAngle);
         this.angleIntervalRad = MathHelper.degreeToRadians(this.angleInterval);
 
         this.running = true;
+        this.ranges = [];
+        this.points = [];
 
         let that = this;
         eventManager.subscribe(Topics.KEYBOARD_KEY_PRESSED, function(e) {
@@ -24,17 +22,47 @@ class LaserScan {
         });
     }
 
+    setPosition(x, y, carAngle) {
+        this.x = x;
+        this.y = y;
+        this.carAngle = carAngle;
+    }
+
     update() {
         if (!this.running) {
             return;
         }
 
-        let i = 0;
-        for (let a = this.startAngleRad; a >= this.endAngleRad; a-=this.angleIntervalRad, i++) {
-            this.points[i] = { x: this.x + this.maxRange * Math.cos(a), y: this.y + this.maxRange * Math.sin(a) };         
+        const len = this.rangeCount;
+        const track = this.track;
+        const maxRange = this.maxRange;
+
+        let a = this.startAngleRad + this.carAngle;
+        for (let i = 0; i < len; i++) {
+            let x = this.x + maxRange * Math.cos(a),
+                y = this.y + maxRange * Math.sin(a),
+                hasIntersection = false;
+
+            const intersection = track.lineSegmentIntersect(this.x, this.y, x, y, true);
+            if (intersection) {
+                x = intersection.x;
+                y = intersection.y;
+                hasIntersection = true;
+            }
+            
+            this.points[i] = { x: x, y: y, hasIntersection: hasIntersection };
+            this.ranges[i] = hasIntersection ? Math.floor(MathHelper.distance(this.x, this.y, x, y)) : maxRange;
+
+            a -= this.angleIntervalRad;     
         }
 
-        eventManager.publish(Topics.LASER_SCAN, this.ranges);
+        eventManager.publish(Topics.LASER_SCAN, { 
+            "LaserScan Start Angle": this.startAngle,
+            "LaserScan End Angle": this.endAngle,
+            "LaserScan Angle Interval": this.angleInterval,
+            "LaserScan Max Range": this.maxRange,
+            "LaserScan Ranges": { val: this.ranges, toString: function() { return this.val.toString(); } } 
+        });
     }
 
     draw(ctx) {
@@ -60,6 +88,12 @@ class LaserScan {
             ctx.moveTo(this.x, this.y);
             ctx.lineTo(point.x, point.y);
             ctx.stroke();
+
+            if (point.hasIntersection) {
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, 1, 0, MathHelper.PI2);
+                ctx.fill();
+            }
             
         }
 
