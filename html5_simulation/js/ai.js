@@ -65,7 +65,7 @@ class AI {
                 that.left = 0;
             }
 
-            if (rightRange <= 20 && frontRange <= 45) {
+            if (rightRange <= 20 && frontRange <= 50) {
                 AI.setLeft(that);
             }
         });

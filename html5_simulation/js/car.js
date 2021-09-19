@@ -96,11 +96,6 @@ class Car {
         this.move();
         this.calculateEdgePoints();
 
-        this.setLaserScanPosition();
-        this.laserScan.update();
-
-        this.updateRoutePoints();
-
         eventManager.publish(Topics.CAR_INFO, { 
             "Car Speed": { val: this.speed, toString: function(){ return this.val.toFixed(2); } }, 
             "Car Steer Angle": Math.floor(MathHelper.radiansToDegree(this.steerAngle)),
@@ -108,6 +103,11 @@ class Car {
             "Car Position": "(" + Math.floor(this.x) + " , " + Math.floor(this.y) + ")",
             "Car Distance": Math.floor(this.distance)
         });
+
+        this.setLaserScanPosition();
+        this.laserScan.update();
+
+        this.updateRoutePoints();
     }
 
     calculateEdgePoints() {
@@ -140,8 +140,7 @@ class Car {
             (crashPoint = this.track.lineSegmentIntersect(x4, y4, x1, y1, true))) {
             this.carCrashPoint = crashPoint;
 
-            eventManager.publish(Topics.APP_CONTROL, ApplicationStates.PAUSED);
-            eventManager.publish(Topics.APP_CONTROL, ApplicationStates.RESTART);
+            eventManager.publish(Topics.APP_CONTROL, ApplicationStates.CRASHED);
         }
     }
 

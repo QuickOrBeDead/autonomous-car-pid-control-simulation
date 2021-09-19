@@ -7,7 +7,8 @@ const ApplicationStates = {
     RUNNING: 1,
     PAUSED: 2,
     RESTART: 3,
-    SWITCH_RUNNING: 4
+    SWITCH_RUNNING: 4,
+    CRASHED: 5
 };
 
 class Application {
@@ -36,8 +37,8 @@ class Application {
         
         const canvas = document.getElementById("canvas"),
               ctx = canvas.getContext("2d"),
-              width = canvas.width = window.innerWidth,
-              height = canvas.height = window.innerHeight;
+              width = canvas.width = window.innerWidth - 10,
+              height = canvas.height = window.innerHeight - 10;
 
         let running = true,
             lastframe = 0,
@@ -69,6 +70,10 @@ class Application {
                 shutDown = true;
             } else if (d === ApplicationStates.SWITCH_RUNNING) {
                 running = !running;
+            } else if(d === ApplicationStates.CRASHED) {
+                running = false;
+                
+                alert("Press R to Restart.");
             }
         });
 
@@ -92,6 +97,8 @@ class Application {
             }
         }
 
+        let animationFrameHandler = null;
+
         render(0);
 
         function render(t, stop) {
@@ -108,11 +115,13 @@ class Application {
             runSim(ctx);
 
             if (stop) {
-                alert("Click OK to Restart.");
+                if (animationFrameHandler !== null) {
+                    window.cancelAnimationFrame(animationFrameHandler);
+                }
 
                 Application.start();
             } else {
-                window.requestAnimationFrame(function (_t) {
+                animationFrameHandler = window.requestAnimationFrame(function (_t) {
                     render(_t, shutDown);
                 });
             }

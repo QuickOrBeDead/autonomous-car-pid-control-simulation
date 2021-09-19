@@ -1,6 +1,6 @@
 class LaserScan {
     constructor(options = {}) {
-        this.maxRange = options.maxRange || 50;
+        this.maxRange = options.maxRange || 60;
         this.track = options.track;
         this.startAngle = options.startAngle || 80;
         this.endAngle = options.endAngle || -80;
